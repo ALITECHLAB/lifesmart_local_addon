@@ -10,7 +10,6 @@ from .api import LifeSmartAPI
 from requests.exceptions import RequestException
 from aiohttp.client_exceptions import ClientError
 from json.decoder import JSONDecodeError
-from .coordinator import LifeSmartCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -147,27 +146,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         api = await api_manager.initialize()
         _LOGGER.debug("LifeSmart API instance created")
-        
-        # Create coordinator instance
-        coordinator = LifeSmartCoordinator(
-            hass=hass,
-            api=api,
-            scan_interval=30000  # 30 seconds, adjust as needed
-        )
-        
-        # Perform initial data fetch
-        await coordinator.async_config_entry_first_refresh()
-        
     except (LifeSmartConnectionError, LifeSmartConfigError) as e:
         _LOGGER.error("Failed to initialize API: %s", str(e))
         return False
 
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {
-        "api_manager": api_manager,
-        "coordinator": coordinator
-    }
-    _LOGGER.debug("API manager and coordinator stored in hass.data")
+    hass.data[DOMAIN][entry.entry_id] = api_manager
+    _LOGGER.debug("API manager stored in hass.data")
     #register_services(hass)
     hass.services.async_register(
         DOMAIN,
