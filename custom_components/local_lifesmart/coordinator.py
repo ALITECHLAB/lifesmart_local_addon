@@ -20,7 +20,7 @@ class LifeSmartCoordinator(DataUpdateCoordinator):
         self, 
         hass: HomeAssistant, 
         api: LifeSmartAPI,
-        scan_interval: int = 1000 # Default to 1000ms (1 second)
+        scan_interval: int = 30000 # Default to 30 seconds
     ) -> None:
         """Initialize the coordinator."""
         super().__init__(
@@ -30,6 +30,58 @@ class LifeSmartCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(milliseconds=scan_interval),
         )
         self.api = api
+        self._available = True
+        self._lock = Lock()
+        self._push_task = None
+        
+    async def _async_update_data(self) -> Dict[str, Any]:
+        """Fetch data from API."""
+        try:
+            # Start push listener if not already running
+            if self._push_task is None or self._push_task.done():
+                self._push_task = asyncio.create_task(self._listen_for_updates())
+                
+            # Fetch all devices
+            devices_data = await self.api.discover_devices()
+            self._available = True
+            return devices_data
+        except Exception as err:
+            self._available = False
+            raise UpdateFailed(f"Error communicating with API: {err}")
+    
+    async def _listen_for_updates(self):
+        """Listen for push updates from devices."""
+        try:
+            while True:
+                update = await self.api.get_state_updates()
+                if update:
+                    # Process the update and update specific device state
+                    _LOGGER.debug("Received push update: %s", update)
+                    device_id = update.get('me')
+                    idx = update.get('idx')
+                    val = update.get('val')
+                    
+                    if device_id and idx is not None and val is not None and self.data:
+                        # Find and update the specific device in the data
+                        for device in self.data.get("msg", []):
+                            if device.get("me") == device_id:
+                                # Ensure data structure exists
+                                if "data" not in device:
+                                    device["data"] = {}
+                                if idx not in device["data"]:
+                                    device["data"][idx] = {}
+                                
+                                # Update the value
+                                device["data"][idx]["v"] = val
+                                _LOGGER.debug("Updated device %s idx %s to value %s", device_id, idx, val)
+                                break
+                    
+                    # Notify entities about the update
+                    self.async_set_updated_data(self.data)
+        except Exception as e:
+            _LOGGER.error("Error in push update listener: %s", str(e))
+            # Allow the task to be restarted on next update
+            self._push_task = None
         self.devices: Dict[str, Any] = {}
         self.device_info: Dict[str, Any] = {}
         self._available = True
