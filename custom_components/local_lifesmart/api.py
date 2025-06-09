@@ -130,3 +130,30 @@ class LifeSmartAPI:
             "key": key
         }
         return await self.send_command("spotremote", args, 3)
+
+    async def async_close(self):
+        """Close any open connections."""
+        if self._socket:
+            try:
+                self._socket.close()
+            except Exception as e:
+                _LOGGER.error("Error closing socket: %s", str(e))
+            finally:
+                self._socket = None
+
+    async def get_devices(self):
+        """Get all devices."""
+        return await self.discover_devices()
+
+    async def discover_devices_by_id(self, device_id, timeout=None):
+        """Discover a specific device by ID."""
+        # You'll need to implement this based on your API's capabilities
+        # For example, you might get all devices and filter by ID:
+        all_devices = await self.discover_devices()
+        if "msg" in all_devices:
+            filtered_devices = {"msg": []}
+            for device in all_devices["msg"]:
+                if device.get("me") == device_id:
+                    filtered_devices["msg"].append(device)
+            return filtered_devices
+        return all_devices
