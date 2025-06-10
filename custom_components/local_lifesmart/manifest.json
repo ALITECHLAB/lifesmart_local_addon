@@ -7,11 +7,7 @@
     "options": true,
     "dependencies": [],
     "requirements": [],
-<<<<<<< Updated upstream
-    "version": "1.0.0",
-=======
     "version": "1.0.3_beta",
->>>>>>> Stashed changes
     "iot_class": "local_push"
   }
   

@@ -131,13 +131,3 @@ class LifeSmartAPI:
             "key": key
         }
         return await self.send_command("spotremote", args, 3)
-
-    async def async_close(self):
-        """Close any open connections."""
-        if self._socket:
-            try:
-                self._socket.close()
-            except Exception as e:
-                _LOGGER.error("Error closing socket: %s", str(e))
-            finally:
-                self._socket = None
