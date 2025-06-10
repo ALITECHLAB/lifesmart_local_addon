@@ -76,12 +76,13 @@ class LifeSmartAPI:
         try:
             data, _ = self._socket.recvfrom(65535)
             if len(data) > 10:
+                # Only extract the fields we need instead of loading the entire JSON
                 message = json.loads(data[10:].decode('utf-8'))
-                _LOGGER.debug("Received UDP message: %s", message)
                 
                 if 'msg' in message:
                     msg = message['msg']
                     if isinstance(msg, dict):
+                        # Create a minimal return object with only needed fields
                         return {
                             'me': msg.get('me'),
                             'idx': msg.get('idx'),

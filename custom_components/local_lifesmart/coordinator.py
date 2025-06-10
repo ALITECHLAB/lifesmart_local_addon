@@ -20,7 +20,7 @@ class LifeSmartCoordinator(DataUpdateCoordinator):
         self, 
         hass: HomeAssistant, 
         api: LifeSmartAPI,
-        scan_interval: int = 30000 # Default to 30 seconds
+        scan_interval: int = 60000 # Default to 30 seconds
     ) -> None:
         """Initialize the coordinator."""
         super().__init__(
@@ -50,42 +50,53 @@ class LifeSmartCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Error communicating with API: {err}")
     
     async def _listen_for_updates(self):
-        """Listen for push updates from devices."""
-        try:
-            while True:
-                update = await self.api.get_state_updates()
-                if update:
-                    # Process the update and update specific device state
-                    _LOGGER.debug("Received push update: %s", update)
-                    device_id = update.get('me')
-                    idx = update.get('idx')
-                    val = update.get('val')
+        # Add better error recovery
+        retry_count = 0
+        max_retries = 5
+        retry_delay = 1
+        
+        while True:
+            try:
+                # Reset the device lookup on each reconnection
+                device_lookup = {}
+                if self.data and "msg" in self.data:
+                    device_lookup = {device.get("me"): device for device in self.data.get("msg", [])}
+                
+                while True:
+                    update = await self.api.get_state_updates()
+                    # Reset retry count on successful update
+                    retry_count = 0
                     
-                    if device_id and idx is not None and val is not None and self.data:
-                        # Find and update the specific device in the data
-                        for device in self.data.get("msg", []):
-                            if device.get("me") == device_id:
-                                # Ensure data structure exists
-                                if "data" not in device:
-                                    device["data"] = {}
-                                if idx not in device["data"]:
-                                    device["data"][idx] = {}
-                                
-                                # Update the value
-                                device["data"][idx]["v"] = val
-                                _LOGGER.debug("Updated device %s idx %s to value %s", device_id, idx, val)
-                                break
+                    # Process the update
+                    if update:
+                        await self.async_refresh()
                     
-                    # Notify entities about the update
-                    self.async_set_updated_data(self.data)
-        except Exception as e:
-            _LOGGER.error("Error in push update listener: %s", str(e))
-            # Allow the task to be restarted on next update
-            self._push_task = None
-        self.devices: Dict[str, Any] = {}
-        self.device_info: Dict[str, Any] = {}
+            except Exception as e:
+                retry_count += 1
+                _LOGGER.error("Error in push update listener (attempt %s/%s): %s", 
+                             retry_count, max_retries, str(e))
+                
+                # Close socket to ensure clean reconnection
+                if hasattr(self.api, '_socket') and self.api._socket:
+                    try:
+                        await self.api._socket.close()
+                    except Exception as close_error:
+                        _LOGGER.debug("Error closing socket: %s", close_error)
+                    self.api._socket = None
+                
+                # If we've exceeded max retries, stop trying
+                if retry_count >= max_retries:
+                    _LOGGER.error("Max retries exceeded for push updates, giving up")
+                    break
+                    
+                # Exponential backoff for retries
+                await asyncio.sleep(retry_delay * (2 ** (retry_count - 1)))
+            
+        # Cleanup when exiting the loop
+        self._push_task = None
+        self.devices = {}
+        self.device_info = {}
         self._available = True
-        self._lock = Lock()
         
     @property 
     def available(self) -> bool:
