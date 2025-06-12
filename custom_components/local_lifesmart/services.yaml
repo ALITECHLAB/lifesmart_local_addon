@@ -1,0 +1,31 @@
+send_keys:
+  description: send IR keys to device.
+  fields:
+    me:
+      description: Device sub id
+      example: '0010'
+    agt:
+      description: Device hub id
+      example: '_xXXXXXXXXXXXXXXXXX'
+    ai:
+      description: Remote control id
+      example: 'AI_IR_xxxx_xxxxxxxx'
+    category:
+      description: Remote control category
+      example: 'custom'
+    brand:
+      description: Target Device brand
+      example: 'custom'
+    keys:
+      description: Command key to be sent
+      example: '["key"]'
+
+scene_set:
+  description: Scene Set.
+  fields:
+    agt:
+      description: Device hub id
+      example: "_xXXXXXXXXXXXXXXXXX"
+    id:
+      description: Scene Id
+      example: "AIxxxxxxxxxxxx"
